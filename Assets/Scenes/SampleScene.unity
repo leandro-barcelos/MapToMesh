@@ -457,11 +457,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d13c0d2682c19292caa8e97526059f8d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  startLat: -20.11204
-  startLon: -44.16555
-  endLat: -20.16135
-  endLon: -44.10873
-  resolution: 10
+  elevationData: {fileID: 2800000, guid: 076afbf32c89d5fabb81fcd0cfa7135c, type: 3}
+  quality: 0.5
 --- !u!4 &2020625992
 Transform:
   m_ObjectHideFlags: 0

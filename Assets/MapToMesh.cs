@@ -1,43 +1,47 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEditor.Compilation;
 using UnityEngine;
 
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class MapToMesh : MonoBehaviour
 {
-    [Header("Starting Position")]
-    public double startLat;
-    public double startLon;
+    [Header("Map Elevation")]
+    public Texture2D elevationData;
+    [Range(0f, 1f)] public float quality;
 
-    [Header("Ending Position")]
-    public double endLat;
-    public double endLon;
+    private float prevQuality;
+    private UnityMeshSimplifier.MeshSimplifier meshSimplifierAPI;
+    private MeshFilter meshFilter;
 
-    [Header("Settings")] public int resolution;
-
-    private async void OnEnable()
+    private void OnEnable()
     {
-        OpenElevationWrap openElevationWrap = new();
-        for (var i = 0; i < resolution; i++)
-        {
-            var lat = startLat + (endLat - startLat) * i / resolution;
-            for (var j = 0; j < resolution; j++)
-            {
-                var lon = startLon + (endLon - startLon) * j / resolution;
-                openElevationWrap.AddLocation(lat, lon);
-            }
-        }
+        meshSimplifierAPI = new();
+        prevQuality = quality;
 
-        var response = await openElevationWrap.GetElevationData();
+        meshFilter = GetComponent<MeshFilter>();
 
-        GenerateMesh(response);
+        GenerateMesh();
     }
 
-    void GenerateMesh(OpenElevationWrap.Response response)
+    private void Update()
     {
-        Mesh mesh = new Mesh { name = "Map Mesh" };
-        var size = GetSize();
+        if (prevQuality != quality)
+        {
+            prevQuality = quality;
+            meshSimplifierAPI.SimplifyMesh(quality);
+            meshFilter.mesh = meshSimplifierAPI.ToMesh();
+        }
+    }
+
+    void GenerateMesh()
+    {
+        if (elevationData.width != elevationData.height)
+        {
+            Debug.LogError("Elevation data texture must be square.");
+            return;
+        }
+
+        Mesh mesh = new() { name = "Map Mesh" };
+
+        var resolution = Mathf.Max(elevationData.height, elevationData.width);
 
         // Initialize arrays
         Vector3[] vertices = new Vector3[resolution * resolution];
@@ -50,11 +54,11 @@ public class MapToMesh : MonoBehaviour
         {
             for (var j = 0; j < resolution; j++)
             {
-                var elevation = response.results[indexVertex].elevation;
+                var elevation = elevationData.GetPixel(i, j).r;
                 vertices[indexVertex] = new Vector3(
-                    (float)i / (resolution - 1) * size.x,
-                    (float)elevation / 1000f,
-                    (float)j / (resolution - 1) * size.y
+                    i * 0.03f,
+                    (float)elevation,
+                    j * 0.03f
                 );
 
                 uvs[indexVertex] = new Vector2((float)i / (resolution - 1), (float)j / (resolution - 1));
@@ -95,20 +99,11 @@ public class MapToMesh : MonoBehaviour
         mesh.RecalculateBounds();
         mesh.RecalculateTangents();
 
-        GetComponent<MeshFilter>().mesh = mesh;
-    }
+        meshSimplifierAPI.Initialize(mesh);
+        meshSimplifierAPI.SimplifyMesh(quality);
+        mesh = meshSimplifierAPI.ToMesh();
 
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
-
-    private Vector2 GetSize()
-    {
-        var width = Mesure(startLat, startLon, startLat, endLon);
-        var height = Mesure(startLat, startLon, endLat, startLon);
-        return new Vector2(width, height);
+        meshFilter.mesh = mesh;
     }
 
     // Returns the distance between to points in KM
